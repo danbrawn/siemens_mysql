@@ -1163,7 +1163,7 @@ BEGIN
 	                    // read error progress
 	                    "READ_FIXED_LENGTH_INT"(error => #retval."bool", data := #recvBuffer, start := #counter, bytes := 3, Dinteger => #errorPacket.PROGRESS);
 	                    // read error progress info
-	                    "READ_LENGTH_ENCODED_STRING"(error => #retval."bool", data := #recvBuffer, start := #counter, str => #errorPacket.PROGRESS_INFO);
+                            "READ_LENGTH_ENCODED_STRING"(error => #retval."bool", data := #recvBuffer, start := #counter, str => #errorPacket.PROGRESS_INFO, maxLength := 254);
 	                    // if (next byte = '#')    
 	                ELSE
 	                    IF BYTE_TO_CHAR(#recvBuffer[#counter]) = '#' THEN
@@ -1263,18 +1263,18 @@ BEGIN
 	                        "READ_FIXED_LENGTH_INT"(error => #retval."bool", data := #recvBuffer, start := #counter, bytes := 3, Dinteger => #packetInfo.LENGTH);
 	                        // read packet number
 	                        "READ_FIXED_LENGTH_INT"(error => #retval."bool", data := #recvBuffer, start := #counter, bytes := 1, Dinteger => #packetInfo.NUMBER);
-	                        // read catalog
-	                        "READ_LENGTH_ENCODED_STRING"(error => #retval."bool", data := #recvBuffer, start := #counter, str => #column.Info.CATALOG);
-	                        // read schema
-	                        "READ_LENGTH_ENCODED_STRING"(error => #retval."bool", data := #recvBuffer, start := #counter, str => #column.Info.SCHEMA);
-	                        // read table alias
-	                        "READ_LENGTH_ENCODED_STRING"(error => #retval."bool", data := #recvBuffer, start := #counter, str => #column.Info.TABLE_ALIAS);
-	                        // read table
-	                        "READ_LENGTH_ENCODED_STRING"(error => #retval."bool", data := #recvBuffer, start := #counter, str => #column.Info.TABLE);
-	                        // read column alias
-	                        "READ_LENGTH_ENCODED_STRING"(error => #retval."bool", data := #recvBuffer, start := #counter, str => #column.Info.COLUMN_ALIAS);
-	                        // read column
-	                        "READ_LENGTH_ENCODED_STRING"(error => #retval."bool", data := #recvBuffer, start := #counter, str => #column.Info.COLUMN);
+                                // read catalog
+                                "READ_LENGTH_ENCODED_STRING"(error => #retval."bool", data := #recvBuffer, start := #counter, str => #column.Info.CATALOG, maxLength := 254);
+                                // read schema
+                                "READ_LENGTH_ENCODED_STRING"(error => #retval."bool", data := #recvBuffer, start := #counter, str => #column.Info.SCHEMA, maxLength := 254);
+                                // read table alias
+                                "READ_LENGTH_ENCODED_STRING"(error => #retval."bool", data := #recvBuffer, start := #counter, str => #column.Info.TABLE_ALIAS, maxLength := 254);
+                                // read table
+                                "READ_LENGTH_ENCODED_STRING"(error => #retval."bool", data := #recvBuffer, start := #counter, str => #column.Info.TABLE, maxLength := 254);
+                                // read column alias
+                                "READ_LENGTH_ENCODED_STRING"(error => #retval."bool", data := #recvBuffer, start := #counter, str => #column.Info.COLUMN_ALIAS, maxLength := 254);
+                                // read column
+                                "READ_LENGTH_ENCODED_STRING"(error => #retval."bool", data := #recvBuffer, start := #counter, str => #column.Info.COLUMN, maxLength := 254);
 	                        // save column name
 	                        #resultData[#column.counter, 0] := #column.Info.COLUMN;
 	                        // if capability flag CLIENT_EXTENDED_TYPE_INFO is set on server and client
@@ -1368,10 +1368,10 @@ BEGIN
 	                                #temp."string" := 'NULL';
 	                                #counter += 1;
 	                            ELSE
-	                                "READ_LENGTH_ENCODED_STRING"(error => #retval."bool", data := #recvBuffer, start := #counter, str => #temp."string");
-	                            END_IF;
-	                            #resultData[#column.counter, #nRows] := #temp."string";
-	                        END_FOR;
+                                        "READ_LENGTH_ENCODED_STRING"(error => #retval."bool", data := #recvBuffer, start := #counter, str => #temp."string", maxLength := #Stringsize);
+                                    END_IF;
+                                    #resultData[#column.counter, #nRows] := #temp."string";
+                                END_FOR;
 	                    END_IF;
 	                END_WHILE;
 	            END_REGION

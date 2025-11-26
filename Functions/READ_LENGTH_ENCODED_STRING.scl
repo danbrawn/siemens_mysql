@@ -6,13 +6,15 @@ FAMILY : SQL
 NAME : '1'
 VERSION : 0.1
 //A length encoded string is a string that is prefixed with length encoded integer describing the length of the string
-   VAR_INPUT 
+   VAR_INPUT
       data : Array[*] of Byte;   // data where the integer is stored
+      maxLength : Int;   // maximum number of characters to copy into str (max supported length is 254)
    END_VAR
 
    VAR_OUTPUT 
       str : String;   // string
       error : Bool;   // error array data to small
+      lengthExceeded : Bool;   // true if the encoded string is longer than maxLength
    END_VAR
 
    VAR_IN_OUT 
@@ -20,7 +22,9 @@ VERSION : 0.1
    END_VAR
 
    VAR_TEMP 
-      stringlength : DInt;   // stringlength
+      stringlength : DInt;   // full stringlength from payload
+      stringlength_copy : Int;   // stringlength limited to maxLength
+      maxCopyLength : Int;   // capped maximum length that can be stored
       stringcounter : Int;
       "counter" : Int;
       arrayUp : DInt;
@@ -34,14 +38,18 @@ BEGIN
 	A length encoded string is a string that is prefixed with
 	length encoded integer describing the length of the string
 	
-	An integer that consumes 1, 3, 4, or 9 bytes, depending on its numeric value
-	If the value is < 251, it is stored as a 1-byte integer
-	If the value is 252, it is stored as fc + 2-byte integer
-	If the value is 253, it is stored as fd + 3-byte integer
-	If the value is 254 it is stored as fe + 8-byte integer
-	*)
+        An integer that consumes 1, 3, 4, or 9 bytes, depending on its numeric value
+        If the value is < 251, it is stored as a 1-byte integer
+        If the value is 252, it is stored as fc + 2-byte integer
+        If the value is 253, it is stored as fd + 3-byte integer
+        If the value is 254 it is stored as fe + 8-byte integer
+
+        The maximum supported string length that can be stored in the provided STR output is 254 characters.
+        The function advances the start pointer by the full encoded length while only copying up to the
+        configured maximum. The lengthExceeded flag allows callers to skip or split oversized data.
+        *)
 	
-	#arrayUp := UPPER_BOUND(ARR := #data, DIM := 1); // get array upper bounds
+        #arrayUp := UPPER_BOUND(ARR := #data, DIM := 1); // get array upper bounds
 	
 	IF #data[#start] < B#16#fb THEN
 	    #bytes := 1;
@@ -64,12 +72,12 @@ BEGIN
 	*)
 	IF #start + #bytes + - 1 <= #arrayUp THEN
 	    #error := False;
-	    CASE #bytes OF
-	        1:
-	            #stringlength.%B0 := #data[#start + 0];
-	            #stringlength.%B1 := B#16#0;
-	            #stringlength.%B2 := B#16#0;
-	            #stringlength.%B3 := B#16#0;
+            CASE #bytes OF
+                1:
+                    #stringlength.%B0 := #data[#start + 0];
+                    #stringlength.%B1 := B#16#0;
+                    #stringlength.%B2 := B#16#0;
+                    #stringlength.%B3 := B#16#0;
 	        3:
 	            #stringlength.%B0 := #data[#start + 1];
 	            #stringlength.%B1 := #data[#start + 2];
@@ -85,28 +93,34 @@ BEGIN
 	            #stringlength.%B1 := #data[#start + 2];
 	            #stringlength.%B2 := #data[#start + 3];
 	            #stringlength.%B3 := #data[#start + 4];
-	    END_CASE;
-	ELSE
-	    #error := True;
-	END_IF;
-	
-	// add bytelength to start
-	#start := #start + #bytes;
-	
-	#str := ''; //initialise string
-	#bytes := DINT_TO_INT(LIMIT_DINT(IN := #stringlength, MN := 0, MX := 254)); // limit amount of bytes to 254
-	#temp_bytes := #start + #bytes - 1;
-	// check if data is big enough
-	IF #start + #bytes - 1 <= #arrayUp AND NOT #error THEN
-	    #error := False;
-	    FOR #counter := #start TO #start + #bytes - 1 DO
-	        #str := CONCAT_STRING(IN1 := #str, IN2 := BYTE_TO_CHAR(#data[#counter]));
-	    END_FOR;
-	ELSE
-	    #error := True;
-	END_IF;
-	
-	// add bytelength to start
-	#start := #start + #bytes;
+            END_CASE;
+        ELSE
+            #error := True;
+            #stringlength := 0;
+        END_IF;
+
+        // add bytelength to start
+        #start := #start + #bytes;
+
+        #str := ''; //initialise string
+        #lengthExceeded := False;
+        #maxCopyLength := LIMIT_INT(IN := #maxLength, MN := 0, MX := 254); // strings on S7 support up to 254 characters
+        #stringlength_copy := DINT_TO_INT(LIMIT_DINT(IN := #stringlength, MN := 0, MX := INT_TO_DINT(#maxCopyLength))); // limit amount of bytes to configured maximum
+        #lengthExceeded := #stringlength > INT_TO_DINT(#maxCopyLength);
+        #temp_bytes := #start + #stringlength_copy - 1;
+        // check if data is big enough
+        IF INT_TO_DINT(#start) + #stringlength - 1 <= #arrayUp AND NOT #error THEN
+            #error := False;
+            IF #stringlength_copy > 0 THEN
+                FOR #counter := #start TO #start + #stringlength_copy - 1 DO
+                    #str := CONCAT_STRING(IN1 := #str, IN2 := BYTE_TO_CHAR(#data[#counter]));
+                END_FOR;
+            END_IF;
+        ELSE
+            #error := True;
+        END_IF;
+
+        // add bytelength to start using full stringlength to keep alignment
+        #start := #start + DINT_TO_INT(LIMIT_DINT(IN := #stringlength, MN := 0, MX := 32767));
 END_FUNCTION
 
